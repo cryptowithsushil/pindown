@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pinterest Downloader</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center font-sans">
+
+    <div id="debugBox" class="hidden w-full max-w-lg bg-red-600 text-white p-4 rounded-lg mb-4 shadow-lg border-2 border-red-800">
+        <h3 class="font-bold border-b border-white pb-2 mb-2">⚠ Error Report:</h3>
+        <p id="debugText" class="font-mono text-sm">No Error</p>
+    </div>
+
+    <div class="w-full max-w-lg bg-white rounded-2xl shadow-xl p-8 mx-4">
+        
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-red-600 mb-2">PinLoader</h1>
+            <p class="text-gray-500">Download Pinterest Videos & Images</p>
+        </div>
+
+        <div class="relative mb-6">
+            <input type="text" id="urlInput" placeholder="Paste Pinterest Link here..." 
+                class="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-red-500">
+            <div class="absolute left-4 top-4 text-gray-400">
+                <i class="fa-solid fa-link text-xl"></i>
+            </div>
+        </div>
+
+        <button onclick="fetchMedia()" id="findBtn"
+            class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-xl shadow-lg flex justify-center items-center gap-2 transition-all">
+            <span>Find Video</span>
+            <i class="fa-solid fa-magnifying-glass"></i>
+        </button>
+
+        <div id="loader" class="hidden mt-6 text-center">
+            <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-red-600 mx-auto"></div>
+            <p class="text-gray-500 mt-2">Searching...</p>
+        </div>
+
+        <div id="resultArea" class="hidden mt-8">
+            <div class="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                
+                <div id="mediaContainer" class="rounded-lg overflow-hidden mb-4 shadow-sm">
+                    </div>
+
+                <div id="progressContainer" class="hidden mb-4">
+                    <div class="flex justify-between text-sm font-medium text-gray-700 mb-1">
+                        <span>Downloading...</span>
+                        <span id="progressText">0%</span>
+                    </div>
+                    <div class="w-full bg-gray-300 rounded-full h-4 overflow-hidden">
+                        <div id="progressBar" class="bg-red-600 h-4 rounded-full transition-all duration-200" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <button id="downloadBtn" onclick="startDownload()"
+                   class="w-full bg-gray-900 hover:bg-black text-white py-3 rounded-lg font-medium transition flex justify-center items-center gap-2">
+                    <span>Save to Device</span>
+                    <i class="fa-solid fa-download"></i>
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // Global variables
+        let currentMediaUrl = ""; 
+
+        // 1. Function to show errors on screen
+        function showDebugError(msg) {
+            const box = document.getElementById('debugBox');
+            const txt = document.getElementById('debugText');
+            box.classList.remove('hidden');
+            txt.innerText = msg;
+        }
+
+        // 2. Main Function to Find Video
+        async function fetchMedia() {
+            // Hide previous errors
+            document.getElementById('debugBox').classList.add('hidden');
+            document.getElementById('resultArea').classList.add('hidden');
+            
+            const url = document.getElementById('urlInput').value.trim();
+            const loader = document.getElementById('loader');
+
+            if (!url) {
+                alert("Please enter a link first!");
+                return;
+            }
+
+            loader.classList.remove('hidden');
+
+            try {
+                // Backend ko call lagana
+                const response = await fetch('/get-media', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url })
+                });
+
+                // Check agar server ne HTML error bheja (common problem)
+                const contentType = response.headers.get("content-type");
+                if (contentType && contentType.indexOf("application/json") === -1) {
+                    throw new Error("Server Error: Python file me kuch gadbad hai.");
+                }
+
+                const data = await response.json();
+
+                if (data.success) {
+                    currentMediaUrl = data.url;
+                    
+                    let htmlCode = "";
+                    if (data.type === 'video') {
+                        htmlCode = '<video controls class="w-full rounded-lg"><source src="' + data.url + '" type="video/mp4"></video>';
+                    } else {
+                        htmlCode = '<img src="' + data.url + '" class="w-full rounded-lg">';
+                    }
+                    
+                    document.getElementById('mediaContainer').innerHTML = htmlCode;
+                    document.getElementById('resultArea').classList.remove('hidden');
+                } else {
+                    showDebugError(data.error || "Media nahi mila.");
+                }
+
+            } catch (err) {
+                console.error(err);
+                showDebugError("System Error: " + err.message);
+            } finally {
+                loader.classList.add('hidden');
+            }
+        }
+
+        // 3. Function to Download with Progress Bar
+        function startDownload() {
+            if (!currentMediaUrl) return;
+
+            const btn = document.getElementById('downloadBtn');
+            const pContainer = document.getElementById('progressContainer');
+            const pBar = document.getElementById('progressBar');
+            const pText = document.getElementById('progressText');
+
+            pContainer.classList.remove('hidden');
+            btn.disabled = true;
+            btn.innerText = "Starting...";
+
+            const xhr = new XMLHttpRequest();
+            // Proxy route call karna
+            const proxyUrl = '/proxy-download?url=' + encodeURIComponent(currentMediaUrl);
+            
+            xhr.open('GET', proxyUrl, true);
+            xhr.responseType = 'blob'; // File aane wali hai
+
+            xhr.onprogress = function(e) {
+                if (e.lengthComputable) {
+                    const percent = Math.round((e.loaded / e.total) * 100);
+                    pBar.style.width = percent + '%';
+                    pText.innerText = percent + '%';
+                    btn.innerText = "Downloading " + percent + "%";
+                }
+            };
+
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    const blob = new Blob([xhr.response], { type: 'video/mp4' });
+                    const link = document.createElement('a');
+                    link.href = window.URL.createObjectURL(blob);
+                    link.download = 'pinterest_video_' + Date.now() + '.mp4';
+                    link.click();
+                    
+                    btn.innerText = "Download Complete!";
+                    setTimeout(function() {
+                        btn.disabled = false;
+                        btn.innerText = "Save to Device";
+                        pContainer.classList.add('hidden');
+                        pBar.style.width = '0%';
+                    }, 3000);
+                } else {
+                    showDebugError("Download Fail ho gaya.");
+                    btn.disabled = false;
+                    btn.innerText = "Try Again";
+                }
+            };
+
+            xhr.onerror = function() {
+                showDebugError("Internet Error.");
+                btn.disabled = false;
+                btn.innerText = "Try Again";
+            };
+
+            xhr.send();
+        }
+    </script>
+</body>
+</html>
