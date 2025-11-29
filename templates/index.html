@@ -3,194 +3,257 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pinterest Downloader</title>
+    <title>PinDown Pro - Sushil Dahiya</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Outfit', sans-serif; overflow-x: hidden; }
+        
+        /* Sparkle Animation */
+        @keyframes floatUp {
+            0% { transform: translateY(100vh) scale(0.5); opacity: 0; }
+            10% { opacity: 1; }
+            100% { transform: translateY(-20vh) scale(1.5) rotate(360deg); opacity: 0; }
+        }
+        .heart-sparkle {
+            position: fixed;
+            bottom: -10vh;
+            pointer-events: none;
+            z-index: 9999;
+            /* Darker shadow for visibility on white background */
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+            animation: floatUp linear forwards;
+        }
+    </style>
 </head>
-<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center font-sans">
+<body class="bg-gray-50 min-h-screen flex flex-col items-center justify-center p-4 text-gray-800">
 
-    <div id="debugBox" class="hidden w-full max-w-lg bg-red-600 text-white p-4 rounded-lg mb-4 shadow-lg border-2 border-red-800">
-        <h3 class="font-bold border-b border-white pb-2 mb-2">⚠ Error Report:</h3>
-        <p id="debugText" class="font-mono text-sm">No Error</p>
+    <div id="heartsContainer"></div>
+
+    <div id="debugBox" class="hidden fixed top-5 z-50 bg-red-600 text-white px-6 py-3 rounded-full shadow-xl">
+        <p class="font-bold text-sm"><i class="fa-solid fa-triangle-exclamation"></i> <span id="debugText">Error</span></p>
     </div>
 
-    <div class="w-full max-w-lg bg-white rounded-2xl shadow-xl p-8 mx-4">
+    <div class="bg-white w-full max-w-lg rounded-3xl shadow-2xl shadow-gray-200/50 p-6 sm:p-10 relative border border-gray-100">
         
         <div class="text-center mb-8">
-            <h1 class="text-3xl font-bold text-red-600 mb-2">PinLoader</h1>
-            <p class="text-gray-500">Download Pinterest Videos & Images</p>
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-50 text-red-600 mb-4 shadow-sm">
+                <i class="fa-brands fa-pinterest text-3xl"></i>
+            </div>
+            <h1 class="text-3xl font-bold text-gray-900 tracking-tight">PinDown <span class="text-red-600">Pro</span></h1>
+            <p class="text-gray-400 text-sm mt-1 font-medium">Video Downloader</p>
         </div>
 
         <div class="relative mb-6">
-            <input type="text" id="urlInput" placeholder="Paste Pinterest Link here..." 
-                class="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-red-500">
-            <div class="absolute left-4 top-4 text-gray-400">
-                <i class="fa-solid fa-link text-xl"></i>
-            </div>
-        </div>
-
-        <button onclick="fetchMedia()" id="findBtn"
-            class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-xl shadow-lg flex justify-center items-center gap-2 transition-all">
-            <span>Find Video</span>
-            <i class="fa-solid fa-magnifying-glass"></i>
-        </button>
-
-        <div id="loader" class="hidden mt-6 text-center">
-            <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-red-600 mx-auto"></div>
-            <p class="text-gray-500 mt-2">Searching...</p>
-        </div>
-
-        <div id="resultArea" class="hidden mt-8">
-            <div class="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                
-                <div id="mediaContainer" class="rounded-lg overflow-hidden mb-4 shadow-sm">
-                    </div>
-
-                <div id="progressContainer" class="hidden mb-4">
-                    <div class="flex justify-between text-sm font-medium text-gray-700 mb-1">
-                        <span>Downloading...</span>
-                        <span id="progressText">0%</span>
-                    </div>
-                    <div class="w-full bg-gray-300 rounded-full h-4 overflow-hidden">
-                        <div id="progressBar" class="bg-red-600 h-4 rounded-full transition-all duration-200" style="width: 0%"></div>
-                    </div>
+            <div class="flex items-center bg-gray-50 rounded-2xl border border-gray-200 focus-within:border-red-500 focus-within:ring-2 focus-within:ring-red-100 transition-all overflow-hidden">
+                <div class="pl-5 text-gray-400">
+                    <i class="fa-solid fa-link"></i>
                 </div>
-
-                <button id="downloadBtn" onclick="startDownload()"
-                   class="w-full bg-gray-900 hover:bg-black text-white py-3 rounded-lg font-medium transition flex justify-center items-center gap-2">
-                    <span>Save to Device</span>
-                    <i class="fa-solid fa-download"></i>
+                <input type="text" id="urlInput" placeholder="Paste Pinterest Link..." 
+                    class="w-full px-4 py-4 bg-transparent outline-none text-gray-800 placeholder-gray-400 font-medium">
+                
+                <button onclick="pasteLink()" class="px-6 py-4 text-xs font-bold text-gray-500 hover:text-red-600 hover:bg-white transition border-l border-gray-200 h-full tracking-wider">
+                    PASTE
                 </button>
             </div>
         </div>
 
+        <button onclick="fetchMedia()" id="findBtn"
+            class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-2xl shadow-lg shadow-red-200 transform transition hover:-translate-y-1 active:scale-[0.98] flex justify-center items-center gap-2 text-lg">
+            <span>Download Video</span>
+            <i class="fa-solid fa-cloud-arrow-down"></i>
+        </button>
+
+        <div id="loader" class="hidden mt-8 text-center">
+            <div class="w-10 h-10 border-4 border-gray-200 border-t-red-600 rounded-full animate-spin mx-auto"></div>
+            <p class="text-gray-400 text-xs mt-3 font-bold uppercase tracking-widest">Processing...</p>
+        </div>
+
+        <div id="resultArea" class="hidden mt-8 animate-[fadeIn_0.5s_ease-out]">
+            
+            <div id="mediaContainer" class="rounded-xl overflow-hidden mb-5 bg-black shadow-lg min-h-[250px] flex items-center justify-center relative">
+                </div>
+
+            <div id="progressContainer" class="hidden mb-4 px-1">
+                <div class="flex justify-between text-[11px] font-bold text-gray-500 mb-1 uppercase">
+                    <span>Downloading...</span>
+                    <span id="progressText">0%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                    <div id="progressBar" class="bg-green-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 gap-3">
+                
+                <button id="downloadBtn1" onclick="startDownload(1)"
+                   class="w-full bg-red-600 text-white hover:bg-red-700 py-3.5 rounded-xl font-bold text-sm transition shadow-md flex justify-center items-center gap-2">
+                    <i class="fa-solid fa-video"></i> 
+                    Download Video (Server 1)
+                </button>
+
+                <button id="downloadBtn2" onclick="startDownload(2)"
+                   class="w-full bg-indigo-600 text-white hover:bg-indigo-700 py-3.5 rounded-xl font-bold text-sm transition shadow-md flex justify-center items-center gap-2">
+                    <i class="fa-solid fa-bolt"></i> 
+                    Download Video (Server 2)
+                </button>
+
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-8 text-gray-400 text-center text-sm font-medium relative z-10 select-none">
+        <p>Made with <i class="fa-solid fa-heart text-red-500 animate-pulse"></i> by 
+            <span id="triggerSparkles" class="text-gray-800 font-bold cursor-pointer hover:text-red-600 transition border-b-2 border-red-500 pb-0.5 ml-1">Sushil Dahiya</span>
+        </p>
     </div>
 
     <script>
-        // Global variables
-        let currentMediaUrl = ""; 
+        // --- SPARKLE EFFECT ---
+        document.getElementById('triggerSparkles').addEventListener('click', function(e) {
+            var container = document.getElementById('heartsContainer');
+            var colors = ['#ef4444', '#f59e0b', '#ec4899', '#8b5cf6']; // Vibrant colors for white bg
+            
+            for (var i = 0; i < 40; i++) {
+                var heart = document.createElement('i');
+                heart.classList.add('fa-solid', 'fa-heart', 'heart-sparkle');
+                
+                var randomSize = Math.random() * 30 + 15; 
+                var randomLeft = Math.random() * 100; 
+                var randomColor = colors[Math.floor(Math.random() * colors.length)];
+                var duration = Math.random() * 3 + 2; 
+                
+                heart.style.left = randomLeft + 'vw';
+                heart.style.fontSize = randomSize + 'px';
+                heart.style.color = randomColor;
+                heart.style.animationDuration = duration + 's';
+                
+                container.appendChild(heart);
+                setTimeout(function() { heart.remove(); }, duration * 1000);
+            }
+        });
 
-        // 1. Function to show errors on screen
-        function showDebugError(msg) {
-            const box = document.getElementById('debugBox');
-            const txt = document.getElementById('debugText');
-            box.classList.remove('hidden');
-            txt.innerText = msg;
+        // --- CORE FUNCTIONS ---
+        var currentMediaUrl = ""; 
+
+        async function pasteLink() {
+            try {
+                const text = await navigator.clipboard.readText();
+                document.getElementById('urlInput').value = text;
+            } catch (err) {
+                alert('Manual paste required.');
+            }
         }
 
-        // 2. Main Function to Find Video
+        function showDebugError(msg) {
+            var box = document.getElementById('debugBox');
+            var txt = document.getElementById('debugText');
+            box.classList.remove('hidden');
+            txt.innerText = msg;
+            setTimeout(function() { box.classList.add('hidden'); }, 4000);
+        }
+
         async function fetchMedia() {
-            // Hide previous errors
+            // UI Reset
             document.getElementById('debugBox').classList.add('hidden');
             document.getElementById('resultArea').classList.add('hidden');
-            
-            const url = document.getElementById('urlInput').value.trim();
-            const loader = document.getElementById('loader');
+            var url = document.getElementById('urlInput').value.trim();
+            var loader = document.getElementById('loader');
 
-            if (!url) {
-                alert("Please enter a link first!");
-                return;
-            }
-
+            if (!url) { showDebugError("Link is empty!"); return; }
             loader.classList.remove('hidden');
 
             try {
-                // Backend ko call lagana
-                const response = await fetch('/get-media', {
+                var response = await fetch('/get-media', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url: url })
                 });
-
-                // Check agar server ne HTML error bheja (common problem)
-                const contentType = response.headers.get("content-type");
-                if (contentType && contentType.indexOf("application/json") === -1) {
-                    throw new Error("Server Error: Python file me kuch gadbad hai.");
-                }
-
-                const data = await response.json();
+                var data = await response.json();
 
                 if (data.success) {
                     currentMediaUrl = data.url;
+                    var htmlCode = "";
                     
-                    let htmlCode = "";
+                    // Simple string concatenation for safety
                     if (data.type === 'video') {
-                        htmlCode = '<video controls class="w-full rounded-lg"><source src="' + data.url + '" type="video/mp4"></video>';
+                        htmlCode = '<video controls autoplay muted loop playsinline class="w-full rounded-lg bg-black" style="max-height: 450px;">';
+                        htmlCode += '<source src="' + data.url + '" type="video/mp4"></video>';
                     } else {
-                        htmlCode = '<img src="' + data.url + '" class="w-full rounded-lg">';
+                        htmlCode = '<img src="' + data.url + '" class="w-full rounded-lg" style="max-height: 450px;">';
                     }
                     
                     document.getElementById('mediaContainer').innerHTML = htmlCode;
                     document.getElementById('resultArea').classList.remove('hidden');
                 } else {
-                    showDebugError(data.error || "Media nahi mila.");
+                    showDebugError(data.error || "Media not found.");
                 }
-
             } catch (err) {
                 console.error(err);
-                showDebugError("System Error: " + err.message);
+                showDebugError("Server Error.");
             } finally {
                 loader.classList.add('hidden');
             }
         }
 
-        // 3. Function to Download with Progress Bar
-        function startDownload() {
+        function startDownload(type) {
             if (!currentMediaUrl) return;
 
-            const btn = document.getElementById('downloadBtn');
-            const pContainer = document.getElementById('progressContainer');
-            const pBar = document.getElementById('progressBar');
-            const pText = document.getElementById('progressText');
+            // Link 2: Direct Open (Always works)
+            if (type === 2) {
+                window.open(currentMediaUrl, '_blank');
+                return;
+            }
+
+            // Link 1: Proxy Download with Progress
+            var btn = document.getElementById('downloadBtn1');
+            var pContainer = document.getElementById('progressContainer');
+            var pBar = document.getElementById('progressBar');
+            var pText = document.getElementById('progressText');
 
             pContainer.classList.remove('hidden');
             btn.disabled = true;
-            btn.innerText = "Starting...";
-
-            const xhr = new XMLHttpRequest();
-            // Proxy route call karna
-            const proxyUrl = '/proxy-download?url=' + encodeURIComponent(currentMediaUrl);
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Saving...';
             
+            var xhr = new XMLHttpRequest();
+            var proxyUrl = '/proxy-download?url=' + encodeURIComponent(currentMediaUrl);
             xhr.open('GET', proxyUrl, true);
-            xhr.responseType = 'blob'; // File aane wali hai
+            xhr.responseType = 'blob';
 
             xhr.onprogress = function(e) {
                 if (e.lengthComputable) {
-                    const percent = Math.round((e.loaded / e.total) * 100);
+                    var percent = Math.round((e.loaded / e.total) * 100);
                     pBar.style.width = percent + '%';
                     pText.innerText = percent + '%';
-                    btn.innerText = "Downloading " + percent + "%";
                 }
             };
-
             xhr.onload = function() {
                 if (xhr.status === 200) {
-                    const blob = new Blob([xhr.response], { type: 'video/mp4' });
-                    const link = document.createElement('a');
+                    var blob = new Blob([xhr.response], { type: 'video/mp4' });
+                    var link = document.createElement('a');
                     link.href = window.URL.createObjectURL(blob);
-                    link.download = 'pinterest_video_' + Date.now() + '.mp4';
+                    link.download = 'PinDown_Sushil_' + Date.now() + '.mp4';
                     link.click();
-                    
-                    btn.innerText = "Download Complete!";
+                    btn.innerHTML = '<i class="fa-solid fa-check"></i> Done!';
                     setTimeout(function() {
                         btn.disabled = false;
-                        btn.innerText = "Save to Device";
+                        btn.innerHTML = '<i class="fa-solid fa-video"></i> Download Video (Server 1)';
                         pContainer.classList.add('hidden');
                         pBar.style.width = '0%';
                     }, 3000);
                 } else {
-                    showDebugError("Download Fail ho gaya.");
+                    showDebugError("Server 1 Busy. Use Server 2.");
                     btn.disabled = false;
-                    btn.innerText = "Try Again";
+                    btn.innerHTML = '<i class="fa-solid fa-video"></i> Download Video (Server 1)';
                 }
             };
-
             xhr.onerror = function() {
-                showDebugError("Internet Error.");
+                showDebugError("Network Error. Use Server 2.");
                 btn.disabled = false;
-                btn.innerText = "Try Again";
+                btn.innerHTML = '<i class="fa-solid fa-video"></i> Download Video (Server 1)';
             };
-
             xhr.send();
         }
     </script>
