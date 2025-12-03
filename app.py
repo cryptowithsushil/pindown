@@ -1,13 +1,14 @@
 from flask import Flask, render_template, request, jsonify, Response, stream_with_context
 import requests
 from bs4 import BeautifulSoup
+import re
 import time
 
 app = Flask(__name__)
 
-# Pinterest ko lagna chahiye ki hum browser hain
+# Pinterest Browser Headers
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
     "Referer": "https://www.pinterest.com/"
 }
 
@@ -22,52 +23,46 @@ def get_media():
     if not url: return jsonify({'error': 'URL missing'}), 400
 
     try:
-        # 1. Page Fetch Karein
+        # 1. Page Fetch karein
         response = requests.get(url, headers=HEADERS, allow_redirects=True)
-        soup = BeautifulSoup(response.text, 'html.parser')
+        html_content = response.text
         
-        media_url = None
-        media_type = 'image'
+        video_url = None
         
-        # 2. Meta Tags check karein
-        og_video = soup.find("meta", property="og:video")
-        og_image = soup.find("meta", property="og:image")
+        # METHOD 1: Regex se sidha 720p.mp4 dhundna (Sabse Best Tarika)
+        # Ye pure page me .mp4 link dhundega
+        found_urls = re.findall(r'https://[^"]+?/720p/[^"]+?\.mp4', html_content)
         
-        if og_video:
-            raw_url = og_video['content']
-            media_type = 'video'
+        if found_urls:
+            video_url = found_urls[0] # Sabse pehla link utha lo
+        
+        # METHOD 2: Agar 720p nahi mila, to normal mp4 dhundo
+        if not video_url:
+            found_urls = re.findall(r'https://[^"]+?\.mp4', html_content)
+            if found_urls:
+                video_url = found_urls[0]
+
+        # METHOD 3: Fallback to Meta Tags (Video or Image)
+        if not video_url:
+            soup = BeautifulSoup(html_content, 'html.parser')
+            og_video = soup.find("meta", property="og:video")
+            og_image = soup.find("meta", property="og:image")
             
-            # --- SMART LINK CONVERTER (FIXED) ---
-            if 'm3u8' in raw_url:
-                # HLS link ko MP4 me badalne ki koshish (High Quality)
-                possible_mp4 = raw_url.replace('/hls/', '/720p/').replace('.m3u8', '.mp4')
-                
-                # Check karein ki kya ye 720p link zinda hai?
-                check = requests.head(possible_mp4, headers=HEADERS)
-                if check.status_code == 200:
-                    media_url = possible_mp4
-                else:
-                    # Agar 720p nahi mila, to original m3u8 hi bhej do (browser play kar lega)
-                    # Ya fir fallback try karo
-                    media_url = raw_url
-            else:
-                media_url = raw_url
+            if og_video:
+                video_url = og_video['content']
+            elif og_image:
+                # Agar video nahi hai to photo dikha dega
+                return jsonify({'success': True, 'type': 'image', 'url': og_image['content']})
 
-        elif og_image:
-            media_url = og_image['content']
-            media_type = 'image'
-        
-        # 3. Fallback: Agar meta tag se nahi mila to <video> tag dhundo
-        if not media_url:
-            video_tag = soup.find("video")
-            if video_tag and video_tag.get('src'):
-                media_url = video_tag['src']
-                media_type = 'video'
+        if video_url:
+            # Final check: Ensure it is NOT an m3u8 file masked as mp4
+            if '.m3u8' in video_url:
+                # Force replace to mp4 structure if regex failed
+                video_url = video_url.replace('/hls/', '/720p/').replace('.m3u8', '.mp4')
 
-        if media_url:
-            return jsonify({'success': True, 'type': media_type, 'url': media_url})
+            return jsonify({'success': True, 'type': 'video', 'url': video_url})
         
-        return jsonify({'error': 'Media not found.'}), 404
+        return jsonify({'error': 'Video not found inside page.'}), 404
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -78,17 +73,18 @@ def proxy_download():
     if not video_url: return "No URL", 400
 
     try:
-        # Stream=True zaroori hai badi files ke liye
+        # Request the video stream
         req = requests.get(video_url, stream=True, headers=HEADERS)
         
-        # Check karein ki video sach me aa raha hai ya error page
+        # Check if the link is actually working (Status 200)
         if req.status_code != 200:
-            return "Failed to fetch video from Pinterest", 400
+            return "Error: Video link expired or blocked", 400
 
+        # File Size Pata Karein
         total_size = req.headers.get('content-length')
         
-        # Unique Filename generate karein taaki purani file replace na ho
-        filename = f"PinDown_{int(time.time())}.mp4"
+        # Filename Generation
+        filename = f"PinDown_Video_{int(time.time())}.mp4"
 
         headers = {
             'Content-Type': 'video/mp4',
@@ -97,7 +93,7 @@ def proxy_download():
         if total_size:
             headers['Content-Length'] = total_size
 
-        return Response(stream_with_context(req.iter_content(chunk_size=4096)), headers=headers)
+        return Response(stream_with_context(req.iter_content(chunk_size=1024*1024)), headers=headers)
     except Exception as e:
         return str(e), 500
 
