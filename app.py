@@ -24,34 +24,59 @@ def get_media():
     try:
         response = requests.get(url, headers=HEADERS, allow_redirects=True)
         html_content = response.text
+        soup = BeautifulSoup(html_content, 'html.parser')
         
+        # 1. VIDEO CHECK
         video_url = None
         
-        # 1. Video Search (Priority)
-        found_urls = re.findall(r'https://[^"]+?/720p/[^"]+?\.mp4', html_content)
-        if found_urls: video_url = found_urls[0]
+        # Regex se MP4 dhundo
+        found_mp4 = re.findall(r'https://[^"]+?/720p/[^"]+?\.mp4', html_content)
+        if found_mp4: video_url = found_mp4[0]
         
         if not video_url:
-            found_urls = re.findall(r'https://[^"]+?\.mp4', html_content)
-            if found_urls: video_url = found_urls[0]
+            found_generic = re.findall(r'https://[^"]+?\.mp4', html_content)
+            if found_generic: video_url = found_generic[0]
 
-        # 2. Meta Tag Fallback
-        soup = BeautifulSoup(html_content, 'html.parser')
-        og_video = soup.find("meta", property="og:video")
-        og_image = soup.find("meta", property="og:image")
+        if not video_url:
+            og_video = soup.find("meta", property="og:video")
+            if og_video: video_url = og_video['content']
 
-        if not video_url and og_video:
-            video_url = og_video['content']
-
-        # 3. Final Decision: Video or Image?
+        # --- SCENARIO A: VIDEO FOUND ---
         if video_url:
+            # Cleanup m3u8
             if '.m3u8' in video_url:
                 video_url = video_url.replace('/hls/', '/720p/').replace('.m3u8', '.mp4')
-            return jsonify({'success': True, 'type': 'video', 'url': video_url})
-        
-        elif og_image:
-            # Agar video nahi mila, to Image return karo
-            return jsonify({'success': True, 'type': 'image', 'url': og_image['content']})
+
+            # FORCE GENERATE QUALITIES (1080p, 720p, 480p)
+            qualities = []
+            
+            # Pinterest standard format check (.../720p/...)
+            if '/720p/' in video_url:
+                # Hum check nahi karenge, bas link bana denge (Force Add)
+                resolutions = ['1080p', '720p', '480p']
+                for res in resolutions:
+                    # Naya URL banao
+                    force_url = video_url.replace('/720p/', f'/{res}/')
+                    qualities.append({'label': f'{res} HD', 'url': force_url})
+            else:
+                # Agar URL pattern alag hai, to bas original dikhao
+                qualities.append({'label': 'Standard Quality', 'url': video_url})
+
+            return jsonify({
+                'success': True, 
+                'type': 'video', 
+                'qualities': qualities,
+                'thumbnail': ''
+            })
+
+        # --- SCENARIO B: IMAGE FOUND ---
+        og_image = soup.find("meta", property="og:image")
+        if og_image:
+            return jsonify({
+                'success': True, 
+                'type': 'image', 
+                'url': og_image['content']
+            })
 
         return jsonify({'error': 'Media not found.'}), 404
 
@@ -60,33 +85,35 @@ def get_media():
 
 @app.route('/proxy-download')
 def proxy_download():
-    media_url = request.args.get('url')
-    media_type = request.args.get('type') # Video ya Image?
+    file_url = request.args.get('url')
+    file_type = request.args.get('type')
     
-    if not media_url: return "No URL", 400
+    if not file_url: return "No URL", 400
 
     try:
-        req = requests.get(media_url, stream=True, headers=HEADERS)
+        # Stream request
+        req = requests.get(file_url, stream=True, headers=HEADERS)
         
+        # Agar 1080p nahi mila (403/404), to user ko batana padega
         if req.status_code != 200:
-            return "Error fetching media", 400
+            return "Selected quality not available. Try another.", 404
 
-        total_size = req.headers.get('content-length')
-        
-        # Extension decide karo based on type
-        ext = 'mp4' if media_type == 'video' else 'jpg'
-        content_type = 'video/mp4' if media_type == 'video' else 'image/jpeg'
+        if file_type == 'image':
+            ext = 'jpg'
+            content_type = 'image/jpeg'
+        else:
+            ext = 'mp4'
+            content_type = 'video/mp4'
         
         filename = f"PinDown_{int(time.time())}.{ext}"
 
         headers = {
             'Content-Type': content_type,
             'Content-Disposition': f'attachment; filename="{filename}"',
+            'Content-Length': req.headers.get('content-length')
         }
-        if total_size:
-            headers['Content-Length'] = total_size
 
-        return Response(stream_with_context(req.iter_content(chunk_size=1024*1024)), headers=headers)
+        return Response(stream_with_context(req.iter_content(chunk_size=4096)), headers=headers)
     except Exception as e:
         return str(e), 500
 
